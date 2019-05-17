@@ -1,0 +1,3 @@
+[submodule "MameVirtualPlayer"]
+	path = MameVirtualPlayer
+	url = git@github.com:LucasAntunesdeAlmeida/MameVirtualPlayer.git

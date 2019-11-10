@@ -14,6 +14,8 @@ from keras.optimizers import RMSprop
 from keras.models import load_model
 from keras.models import clone_model
 from keras.models import Sequential
+from keras.models import Model
+from keras import layers
 from keras.layers import Conv2D
 from keras.layers import Flatten
 from keras.layers import Dense
@@ -24,14 +26,14 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 class Agent(object):
     def __init__(self):
-        self.game = "atari"
+        self.game = "Breakout-v0"
         self.train_dir = "saves"
         self.restore_file_path = "{0}\{1}.h5".format(self.train_dir, self.game)
-        self.num_episode = 100000
-        self.observe_step_num = 50000
-        self.epsilon_step_num = 1000000
-        self.refresh_target_model_num = 10000
-        self.replay_memory = 400000
+        self.num_episode = 1000
+        self.observe_step_num = 500
+        self.epsilon_step_num = 10000
+        self.refresh_target_model_num = 100
+        self.replay_memory = 40000
         self.no_op_steps = 30
         self.regularizer_scale = 0.01
         self.batch_size = 32
@@ -43,8 +45,9 @@ class Agent(object):
         self.render = True
         self.shape = (84, 84, 4)
         self.action_size = 3
+        self.debug = False
 
-    def set_shape(self, game):
+    def set_game(self, game):
         self.game = game
 
     def train_dir(self, train_dir):
@@ -95,11 +98,14 @@ class Agent(object):
     def set_render(self, render):
         self.render = render
 
-    def set_atari_shape(self, atari_shape):
-        self.atari_shape = atari_shape
+    def set_shape(self, shape):
+        self.shape = shape
 
     def set_action_size(self, action_size):
         self.action_size = action_size
+
+    def set_debug(self, debug):
+        self.debug = debug
 
     def pre_processing(self, observe):
         processed_observe = np.uint8(resize(rgb2gray(observe), (84, 84), mode='constant') * 255)
@@ -113,34 +119,25 @@ class Agent(object):
         return loss
 
     def def_model(self):
-        # frames_input = layers.Input(ATARI_SHAPE, name='frames')
-        # actions_input = layers.Input((ACTION_SIZE,), name='action_mask')
-        # normalized = layers.Lambda(lambda x: x / 255.0, name='normalization')(frames_input)
-        # conv_1 = layers.convolutional.Conv2D(
-        #     16, (8, 8), strides=(4, 4), activation='relu'
-        # )(normalized)
-        # conv_2 = layers.convolutional.Conv2D(
-        #     32, (4, 4), strides=(2, 2), activation='relu'
-        # )(conv_1)
-        # conv_flattened = layers.core.Flatten()(conv_2)
-        # hidden = layers.Dense(256, activation='relu')(conv_flattened)
-        # output = layers.Dense(ACTION_SIZE)(hidden)
-        # filtered_output = layers.Multiply(name='QValue')([output, actions_input])
+        frames_input = layers.Input(self.shape, name='frames')
+        actions_input = layers.Input((self.action_size,), name='action_mask')
+        normalized = layers.Lambda(lambda x: x / 255.0, name='normalization')(frames_input)
+        conv_1 = layers.convolutional.Conv2D(
+            16, (8, 8), strides=(4, 4), activation='relu'
+        )(normalized)
+        conv_2 = layers.convolutional.Conv2D(
+            32, (4, 4), strides=(2, 2), activation='relu'
+        )(conv_1)
+        conv_flattened = layers.core.Flatten()(conv_2)
+        hidden = layers.Dense(256, activation='relu')(conv_flattened)
+        output = layers.Dense(self.action_size)(hidden)
+        filtered_output = layers.Multiply(name='QValue')([output, actions_input])
 
-        # model = Model(inputs=[frames_input, actions_input], outputs=filtered_output)
-        # model.summary()
-        # optimizer = RMSprop(lr=FLAGS.learning_rate, rho=0.95, epsilon=0.01)
-        # model.compile(optimizer, loss=huber_loss)
-
-        model = Sequential()
-        model.add(Conv2D(32, (8, 8), strides=(4, 4), activation='relu',input_shape=self.shape))
-        model.add(Conv2D(64, (4, 4), strides=(2, 2), activation='relu'))
-        model.add(Conv2D(64, (3, 3), strides=(1, 1), activation='relu'))
-        model.add(Flatten())
-        model.add(Dense(512, activation='relu'))
-        model.add(Dense(self.action_size))
+        model = Model(inputs=[frames_input, actions_input], outputs=filtered_output)
         model.summary()
-        model.compile(RMSprop(lr=self.learning_rate, rho=0.95, epsilon=0.01), loss=self.huber_loss)
+        optimizer = RMSprop(lr=self.learning_rate, rho=0.95, epsilon=0.01)
+        model.compile(optimizer, loss=self.huber_loss)
+
         return model
 
     def get_action(self, history, epsilon, step, model):
@@ -158,8 +155,8 @@ class Agent(object):
 
     def train_memory_batch(self, memory, model):
         mini_batch = random.sample(memory, self.batch_size)
-        history = np.zeros((self.batch_size, self.atari_shape[0], self.atari_shape[1], self.atari_shape[2]))
-        next_history = np.zeros((self.batch_size, self.atari_shape[0], self.atari_shape[1], self.atari_shape[2]))
+        history = np.zeros((self.batch_size, self.shape[0], self.shape[1], self.shape[2]))
+        next_history = np.zeros((self.batch_size, self.shape[0], self.shape[1], self.shape[2]))
         target = np.zeros((self.batch_size,))
         action = []
         reward = []
@@ -181,7 +178,7 @@ class Agent(object):
             else:
                 target[i] = reward[i] + self.gamma * np.amax(next_Q_values[i])
 
-        action_one_hot = get_one_hot(action, self.action_size)
+        action_one_hot = self.get_one_hot(action, self.action_size)
         target_one_hot = action_one_hot * target[:, None]
 
         h = model.fit([history, action_one_hot], target_one_hot, epochs=1, batch_size=self.batch_size, verbose=0)
@@ -196,7 +193,7 @@ class Agent(object):
         global_step = 0
 
         if self.resume:
-            model = self.load_model(self.restore_file_path)
+            model = load_model(self.restore_file_path)
             epsilon = self.final_epsilon
         else:
             model = self.def_model()
@@ -213,7 +210,10 @@ class Agent(object):
             observe = env.reset()
 
             for _ in range(random.randint(1, self.no_op_steps)):
-                observe, _, _, _ = env.step(1)
+                observe, score, done, info = env.step(1)
+
+            if self.debug:
+                print("Time Score: {0}".format(score))
 
             state = self.pre_processing(observe)
             history = np.stack((state, state, state, state), axis=2)
@@ -225,12 +225,11 @@ class Agent(object):
                     time.sleep(0.01)
 
                 action = self.get_action(history, epsilon, global_step, model_target)
-                real_action = action + 1
 
                 if epsilon > self.final_epsilon and global_step > self.observe_step_num:
                     epsilon -= epsilon_decay
 
-                observe, reward, done, info = env.step(real_action)
+                observe, reward, done, info = env.step(action)
                 next_state = self.pre_processing(observe)
                 next_state = np.reshape([next_state], (1, 84, 84, 1))
                 next_history = np.append(next_state, history[:, :, :, :3], axis=3)
@@ -275,8 +274,6 @@ class Agent(object):
 
                     episode_number += 1
 
-        file_writer.close()
-
     def test(self, env):
         episode_number = 0
         epsilon = 0.001
@@ -300,9 +297,8 @@ class Agent(object):
                 time.sleep(0.01)
 
                 action = self.get_action(history, epsilon, global_step, model)
-                real_action = action + 1
 
-                observe, reward, done, info = env.step(real_action)
+                observe, reward, done, info = env.step(action)
                 next_state = self.pre_processing(observe)
                 next_state = np.reshape([next_state], (1, 84, 84, 1))
                 next_history = np.append(next_state, history[:, :, :, :3], axis=3)
@@ -328,9 +324,13 @@ class Agent(object):
 
 
 if __name__ == '__main__':
-    game = 'Breakout-v0'
+    game = 'SpaceInvaders-v0'
     path = "{0}\{1}.h5".format('saves', game)
-    ggp_agent = Agent()
-    ggp_agent.set_restore_file_path(path)
     env = gym.make(game)
+    action_size = env.action_space.n
+    ggp_agent = Agent()
+    ggp_agent.set_game(game)
+    ggp_agent.set_restore_file_path(path)
+    ggp_agent.set_action_size(action_size)
+    ggp_agent.set_render(False)
     ggp_agent.test(env)

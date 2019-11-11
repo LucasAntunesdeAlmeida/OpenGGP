@@ -15,6 +15,7 @@ def parseArguments():
     parser.add_argument("--resume", action="store_const", const=True, help="Set resume mode to on", default=False)
     parser.add_argument("-g", "--gamename", type=str, required=True, help="Define game from OpenAI Gym")
     parser.add_argument("-f", "--filename", type=str, help="Set the restore file path")
+    parser.add_argument("-m", "--memory", type=int, help="Set the size of the replay memory")
 
     return parser.parse_args()
 
@@ -34,6 +35,9 @@ if __name__ == '__main__':
     ggp_agent.set_restore_file_path(path)
     ggp_agent.set_action_size(action_size)
     ggp_agent.set_render(args.render)
+
+    if args.memory:
+        ggp_agent.set_replay_memory(args.memory)
 
     if args.train:
         if args.resume:

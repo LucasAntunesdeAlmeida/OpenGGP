@@ -28,7 +28,7 @@ class Agent(object):
     def __init__(self):
         self.game = "Breakout-v0"
         self.train_dir = "saves"
-        self.restore_file_path = "{0}\{1}.h5".format(self.train_dir, self.game)
+        self.restore_file_path = "{0}/{1}.h5".format(self.train_dir, self.game)
         self.num_episode = 1000
         self.observe_step_num = 500
         self.epsilon_step_num = 10000
@@ -262,8 +262,8 @@ class Agent(object):
                         state = "explore"
                     else:
                         state = "train"
-                    print('state: {0}, episode: {1}, score: {2}, global_step: {3}, avg loss: {4}, step: {5}, memory length: {6}'.format(
-                        state, episode_number, score, global_step, loss / float(step), step, len(memory)
+                    print('state: {0}, episode: {1}, score: {2}'.format(
+                        state, episode_number, score
                         ))
 
                     if episode_number % 100 == 0 or (episode_number + 1) == self.num_episode:
@@ -321,16 +321,3 @@ class Agent(object):
                 if done:
                     episode_number += 1
                     print('episode: {0}, score: {1}'.format(episode_number, score))
-
-
-if __name__ == '__main__':
-    game = 'SpaceInvaders-v0'
-    path = "{0}\{1}.h5".format('saves', game)
-    env = gym.make(game)
-    action_size = env.action_space.n
-    ggp_agent = Agent()
-    ggp_agent.set_game(game)
-    ggp_agent.set_restore_file_path(path)
-    ggp_agent.set_action_size(action_size)
-    ggp_agent.set_render(False)
-    ggp_agent.test(env)

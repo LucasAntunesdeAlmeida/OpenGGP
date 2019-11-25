@@ -24,11 +24,12 @@ if __name__ == '__main__':
     args = parseArguments()
 
     if args.filename:
-        path = "{0}\{1}".format('saves', args.filename)
+        path = "{0}/{1}.h5".format('saves', args.filename)
     else:
-        path = "{0}\{1}.h5".format('saves', args.gamename)
+        path = "{0}/{1}.h5".format('saves', args.gamename)
 
     env = gym.make(args.gamename)
+
     action_size = env.action_space.n
     ggp_agent = Agent()
     ggp_agent.set_game(args.gamename)
@@ -45,3 +46,5 @@ if __name__ == '__main__':
         ggp_agent.train(env)
     elif args.test:
         ggp_agent.test(env)
+
+    env.close()

@@ -1,7 +1,6 @@
-atari-py
-gym
-keras
-numpy
-scikit-image
-tensorflow
-datetime
+atari-py>=0.2.6
+gym>=0.15.4
+tensorflow>=2.0.0
+keras>=2.3.1
+numpy>=1.16.4
+scikit-image>=0.15.0

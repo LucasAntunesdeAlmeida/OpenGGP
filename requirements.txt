@@ -1,0 +1,7 @@
+atari-py
+gym
+keras
+numpy
+scikit-image
+tensorflow
+datetime
